@@ -549,6 +549,145 @@
             background: rgba(255, 68, 68, 0.1);
         }
 
+        /* GitHub Sync Settings */
+        .github-sync-banner {
+            background: linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(255, 107, 53, 0.05) 100%);
+            border: 1px solid var(--color-accent);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sync-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        .sync-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-text-dim);
+        }
+
+        .sync-status.active {
+            background: var(--color-success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .btn-setup {
+            padding: 0.5rem 1rem;
+            background: var(--color-accent);
+            border: none;
+            color: white;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .btn-setup:hover {
+            background: var(--color-accent-dim);
+            transform: translateY(-2px);
+        }
+
+        .github-setup-modal .modal-content {
+            max-width: 600px;
+        }
+
+        .setup-instructions {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .setup-instructions h3 {
+            color: var(--color-accent);
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .setup-instructions ol {
+            margin-left: 1.5rem;
+            line-height: 1.8;
+        }
+
+        .setup-instructions code {
+            background: var(--color-surface);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--color-accent);
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--color-text-dim);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+        }
+
+        .btn-save {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--color-accent);
+            border: none;
+            color: white;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 4px;
+            margin-top: 1rem;
+        }
+
+        .btn-save:hover {
+            background: var(--color-accent-dim);
+        }
+
         /* Toast */
         .toast {
             position: fixed;
@@ -661,6 +800,15 @@
                 <p class="calendar-subtitle">Theo dõi lịch làm việc và ghi chú hàng ngày</p>
             </div>
 
+            <!-- GitHub Sync Banner -->
+            <div class="github-sync-banner" id="syncBanner">
+                <div class="sync-info">
+                    <span class="sync-status" id="syncStatus"></span>
+                    <span id="syncText">GitHub Sync: Chưa cấu hình</span>
+                </div>
+                <button class="btn-setup" id="setupGithubBtn">Cấu hình</button>
+            </div>
+
             <div class="calendar-controls">
                 <button class="btn-nav" id="prevMonth">← Tháng trước</button>
                 <div class="current-month" id="currentMonth"></div>
@@ -743,14 +891,54 @@
         <img id="lightboxImage" src="" alt="Full size image">
     </div>
 
+    <!-- GitHub Setup Modal -->
+    <div class="modal github-setup-modal" id="githubModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Cấu hình GitHub Sync</h2>
+                <button class="modal-close" id="githubModalClose">×</button>
+            </div>
+
+            <div class="setup-instructions">
+                <h3>Hướng dẫn lấy GitHub Token:</h3>
+                <ol>
+                    <li>Truy cập <code>github.com/settings/tokens</code></li>
+                    <li>Click "Generate new token" → "Generate new token (classic)"</li>
+                    <li>Đặt tên: <code>Calendar Sync</code></li>
+                    <li>Chọn quyền: <code>repo</code> (Full control of private repositories)</li>
+                    <li>Click "Generate token" và copy token</li>
+                    <li>Dán token vào ô bên dưới</li>
+                </ol>
+            </div>
+
+            <div class="input-group">
+                <label for="githubToken">GitHub Personal Access Token:</label>
+                <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+            </div>
+
+            <button class="btn-save" id="saveGithubToken">Lưu và Đồng bộ</button>
+        </div>
+    </div>
+
     <script>
         const STORAGE_KEY = 'calendar_work_days';
         const IMGBB_API_KEY = '6e0212d489371c34354c8a7bd4c86971'; // ImgBB API key
+
+        // GitHub Configuration
+        const GITHUB_CONFIG = {
+            owner: 'khoapc', // Your GitHub username
+            repo: 'khoapc.github.io', // Your repository name
+            path: 'calendar-data.json', // File path in repo
+            token: '', // Will be set by user
+            branch: 'main'
+        };
 
         let currentDate = new Date();
         let selectedDate = null;
         let workDaysData = {};
         let isUploading = false;
+        let isSyncing = false;
+        let githubSha = null; // For updating existing file
 
         // Elements
         const daysGrid = document.getElementById('daysGrid');
@@ -773,20 +961,145 @@
         const lightboxImage = document.getElementById('lightboxImage');
         const closeLightbox = document.getElementById('closeLightbox');
 
+        // Load GitHub token from localStorage
+        function loadGithubToken() {
+            const token = localStorage.getItem('github_token');
+            if (token) {
+                GITHUB_CONFIG.token = token;
+                updateSyncStatus(true);
+                return true;
+            }
+            return false;
+        }
+
+        // Update sync status UI
+        function updateSyncStatus(isActive) {
+            const syncStatus = document.getElementById('syncStatus');
+            const syncText = document.getElementById('syncText');
+            const setupBtn = document.getElementById('setupGithubBtn');
+
+            if (isActive) {
+                syncStatus.classList.add('active');
+                syncText.textContent = 'GitHub Sync: Đã kích hoạt';
+                setupBtn.textContent = 'Cài đặt lại';
+            } else {
+                syncStatus.classList.remove('active');
+                syncText.textContent = 'GitHub Sync: Chưa cấu hình';
+                setupBtn.textContent = 'Cấu hình';
+            }
+        }
+
+        // Load data from GitHub
+        async function loadFromGithub() {
+            if (!GITHUB_CONFIG.token) {
+                console.log('No GitHub token, using LocalStorage');
+                loadWorkDaysLocal();
+                return;
+            }
+
+            try {
+                isSyncing = true;
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `token ${GITHUB_CONFIG.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    githubSha = data.sha;
+
+                    // Decode base64 content
+                    const content = atob(data.content);
+                    workDaysData = JSON.parse(content);
+
+                    // Also save to LocalStorage as backup
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(workDaysData));
+
+                    console.log('Loaded data from GitHub');
+                    showToast('✅ Đã tải dữ liệu từ GitHub');
+                } else if (response.status === 404) {
+                    // File doesn't exist yet, load from LocalStorage
+                    console.log('File not found on GitHub, using LocalStorage');
+                    loadWorkDaysLocal();
+                    // Create file on GitHub
+                    await saveToGithub();
+                } else {
+                    throw new Error('Failed to load from GitHub');
+                }
+            } catch (error) {
+                console.error('Error loading from GitHub:', error);
+                showToast('⚠️ Không thể tải từ GitHub, dùng dữ liệu local');
+                loadWorkDaysLocal();
+            } finally {
+                isSyncing = false;
+                migrateData();
+                renderCalendar();
+                updateStats();
+            }
+        }
+
         // Load work days from LocalStorage
-        function loadWorkDays() {
+        function loadWorkDaysLocal() {
             try {
                 const data = localStorage.getItem(STORAGE_KEY);
                 workDaysData = data ? JSON.parse(data) : {};
-
-                // Migrate old data format (single image) to new format (array)
-                migrateData();
             } catch (error) {
                 console.error('Error loading calendar data:', error);
                 workDaysData = {};
             }
-            renderCalendar();
-            updateStats();
+        }
+
+        // Save data to GitHub
+        async function saveToGithub() {
+            if (!GITHUB_CONFIG.token || isSyncing) {
+                return;
+            }
+
+            try {
+                isSyncing = true;
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+
+                const content = btoa(unescape(encodeURIComponent(JSON.stringify(workDaysData, null, 2))));
+
+                const body = {
+                    message: `Update calendar data - ${new Date().toISOString()}`,
+                    content: content,
+                    branch: GITHUB_CONFIG.branch
+                };
+
+                // If file exists, include sha for update
+                if (githubSha) {
+                    body.sha = githubSha;
+                }
+
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GITHUB_CONFIG.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    githubSha = data.content.sha;
+                    console.log('Saved to GitHub successfully');
+                    showToast('✅ Đã đồng bộ lên GitHub');
+                } else {
+                    throw new Error('Failed to save to GitHub');
+                }
+            } catch (error) {
+                console.error('Error saving to GitHub:', error);
+                showToast('⚠️ Không thể đồng bộ lên GitHub');
+            } finally {
+                isSyncing = false;
+            }
         }
 
         // Migrate old data format to new format
@@ -807,10 +1120,16 @@
             }
         }
 
-        // Save work days to LocalStorage
+        // Save work days to LocalStorage and GitHub
         function saveWorkDays() {
             try {
+                // Always save to LocalStorage first (backup)
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(workDaysData));
+
+                // Then sync to GitHub if configured
+                if (GITHUB_CONFIG.token) {
+                    saveToGithub();
+                }
             } catch (error) {
                 console.error('Error saving calendar data:', error);
                 showToast('❌ Lỗi khi lưu dữ liệu!');
@@ -818,7 +1137,8 @@
         }
 
         // Initialize
-        loadWorkDays();
+        loadGithubToken();
+        loadFromGithub();
 
         // Event listeners
         prevMonthBtn.addEventListener('click', () => {
@@ -1201,10 +1521,70 @@
             }, 3000);
         }
 
+        // GitHub Setup Modal
+        const githubModal = document.getElementById('githubModal');
+        const githubModalClose = document.getElementById('githubModalClose');
+        const setupGithubBtn = document.getElementById('setupGithubBtn');
+        const saveGithubTokenBtn = document.getElementById('saveGithubToken');
+        const githubTokenInput = document.getElementById('githubToken');
+
+        setupGithubBtn.addEventListener('click', () => {
+            githubTokenInput.value = GITHUB_CONFIG.token || '';
+            githubModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+
+        githubModalClose.addEventListener('click', () => {
+            githubModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+        });
+
+        githubModal.addEventListener('click', (e) => {
+            if (e.target === githubModal) {
+                githubModal.classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
+        });
+
+        saveGithubTokenBtn.addEventListener('click', async () => {
+            const token = githubTokenInput.value.trim();
+
+            if (!token) {
+                showToast('❌ Vui lòng nhập GitHub token!');
+                return;
+            }
+
+            // Save token
+            GITHUB_CONFIG.token = token;
+            localStorage.setItem('github_token', token);
+
+            // Close modal
+            githubModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+
+            // Update UI
+            updateSyncStatus(true);
+            showToast('⏳ Đang đồng bộ với GitHub...');
+
+            // Try to load from GitHub or create new file
+            await loadFromGithub();
+
+            showToast('✅ Đã cấu hình GitHub Sync thành công!');
+        });
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modal.classList.contains('active')) {
-                closeModal();
+            if (e.key === 'Escape') {
+                if (modal.classList.contains('active')) {
+                    closeModal();
+                }
+                if (githubModal.classList.contains('active')) {
+                    githubModal.classList.remove('active');
+                    document.body.style.overflow = 'auto';
+                }
+                if (lightbox.classList.contains('active')) {
+                    lightbox.classList.remove('active');
+                }
             }
         });
     </script>
