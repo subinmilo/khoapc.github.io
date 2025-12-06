@@ -1028,7 +1028,9 @@
                     // Create file on GitHub
                     await saveToGithub();
                 } else {
-                    throw new Error('Failed to load from GitHub');
+                    const errorData = await response.json();
+                    console.error('GitHub API Error:', response.status, errorData);
+                    throw new Error(`Failed to load from GitHub: ${response.status}`);
                 }
             } catch (error) {
                 console.error('Error loading from GitHub:', error);
@@ -1092,7 +1094,9 @@
                     console.log('Saved to GitHub successfully');
                     showToast('✅ Đã đồng bộ lên GitHub');
                 } else {
-                    throw new Error('Failed to save to GitHub');
+                    const errorData = await response.json();
+                    console.error('GitHub API Error:', response.status, errorData);
+                    throw new Error(`GitHub API Error: ${response.status} - ${errorData.message}`);
                 }
             } catch (error) {
                 console.error('Error saving to GitHub:', error);
