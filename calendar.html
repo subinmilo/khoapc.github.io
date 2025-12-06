@@ -632,37 +632,13 @@
                 <img id="currentImage" src="" alt="Work photo">
             </div>
 
-            <div class="upload-area-modal" id="uploadAreaModal" style="display: none;">
-                <div class="upload-icon">📷</div>
-                <p class="upload-text">
-                    <strong>Chức năng upload đang tạm khóa</strong><br>
-                    Vui lòng xem hướng dẫn bên dưới
+            <div class="upload-area-modal" id="uploadAreaModal">
+                <div class="upload-icon" id="uploadIcon">📷</div>
+                <p class="upload-text" id="uploadText">
+                    <strong>Click để chọn ảnh</strong><br>
+                    hoặc kéo thả ảnh vào đây
                 </p>
-                <input type="file" id="modalFileInput" accept="image/*" disabled>
-            </div>
-
-            <div id="instructionSection">
-                <div style="background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
-                    <h3 style="color: var(--color-accent); margin-bottom: 1rem; font-size: 1.1rem;">📝 Hướng dẫn thêm ảnh ngày làm việc:</h3>
-                    <ol style="color: var(--color-text-dim); font-family: var(--font-mono); font-size: 0.9rem; line-height: 1.8; padding-left: 1.5rem;">
-                        <li>Đặt tên ảnh theo định dạng: <code style="color: var(--color-accent);">YYYY-MM-DD.jpg</code> (ví dụ: <code style="color: var(--color-accent);">2024-12-06.jpg</code>)</li>
-                        <li>Copy ảnh vào thư mục: <code style="color: var(--color-accent);">images/calendar/</code></li>
-                        <li>Mở file <code style="color: var(--color-accent);">calendar-data.json</code></li>
-                        <li>Thêm dòng mới: <code style="color: var(--color-accent);">"2024-12-06": "images/calendar/2024-12-06.jpg"</code></li>
-                        <li>Commit và push lên GitHub</li>
-                    </ol>
-                    <p style="color: var(--color-text-dim); font-family: var(--font-mono); font-size: 0.85rem; margin-top: 1rem; padding: 0.8rem; background: rgba(255, 107, 53, 0.1); border-radius: 4px;">
-                        💡 <strong>Ví dụ trong calendar-data.json:</strong><br>
-                        <code style="display: block; margin-top: 0.5rem; color: var(--color-accent);">
-                        {<br>
-                        &nbsp;&nbsp;"workDays": {<br>
-                        &nbsp;&nbsp;&nbsp;&nbsp;"2024-12-06": "images/calendar/2024-12-06.jpg",<br>
-                        &nbsp;&nbsp;&nbsp;&nbsp;"2024-12-07": "images/calendar/2024-12-07.jpg"<br>
-                        &nbsp;&nbsp;}<br>
-                        }
-                        </code>
-                    </p>
-                </div>
+                <input type="file" id="modalFileInput" accept="image/*">
             </div>
 
             <button class="btn-remove" id="removeWork" style="display: none;">
@@ -675,9 +651,13 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        const STORAGE_KEY = 'calendar_work_days';
+        const IMGBB_API_KEY = 'e4d61e6a1f3e8c1a8f3b9c5d7e9f1a2b'; // Free public key for demo
+
         let currentDate = new Date();
         let selectedDate = null;
         let workDaysData = {};
+        let isUploading = false;
 
         // Elements
         const daysGrid = document.getElementById('daysGrid');
@@ -698,18 +678,27 @@
         const statsTotal = document.getElementById('statsTotal');
         const statsPercent = document.getElementById('statsPercent');
 
-        // Load data from JSON file
-        async function loadWorkDays() {
+        // Load work days from LocalStorage
+        function loadWorkDays() {
             try {
-                const response = await fetch('calendar-data.json');
-                const data = await response.json();
-                workDaysData = data.workDays || {};
+                const data = localStorage.getItem(STORAGE_KEY);
+                workDaysData = data ? JSON.parse(data) : {};
             } catch (error) {
                 console.error('Error loading calendar data:', error);
                 workDaysData = {};
             }
             renderCalendar();
             updateStats();
+        }
+
+        // Save work days to LocalStorage
+        function saveWorkDays() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(workDaysData));
+            } catch (error) {
+                console.error('Error saving calendar data:', error);
+                showToast('❌ Lỗi khi lưu dữ liệu!');
+            }
         }
 
         // Initialize
@@ -757,12 +746,20 @@
         });
 
         modalFileInput.addEventListener('change', (e) => {
-            // Disabled - manual upload only
-            showToast('⚠️ Vui lòng upload ảnh thủ công theo hướng dẫn');
+            if (e.target.files.length > 0) {
+                handleImageUpload(e.target.files[0]);
+            }
         });
 
         removeWorkBtn.addEventListener('click', () => {
-            showToast('⚠️ Vui lòng xóa thủ công trong file calendar-data.json');
+            if (confirm('Bạn có chắc muốn xóa đánh dấu ngày làm việc này?')) {
+                delete workDaysData[selectedDate];
+                saveWorkDays();
+                closeModal();
+                renderCalendar();
+                updateStats();
+                showToast('🗑️ Đã xóa ngày làm việc');
+            }
         });
 
         // Functions
@@ -853,18 +850,18 @@
             const date = new Date(dateStr);
             const hasWork = workDaysData[dateStr] !== undefined;
 
-            modalTitle.textContent = hasWork ? 'Ngày đã làm việc' : 'Hướng dẫn thêm ngày làm việc';
+            modalTitle.textContent = hasWork ? 'Ngày đã làm việc' : 'Đánh dấu ngày làm việc';
             modalDate.textContent = formatDateDisplay(date);
 
             if (hasWork) {
                 currentImage.src = workDaysData[dateStr];
                 currentImageSection.style.display = 'block';
                 removeWorkBtn.style.display = 'block';
-                document.getElementById('instructionSection').style.display = 'none';
+                uploadAreaModal.style.display = 'none';
             } else {
                 currentImageSection.style.display = 'none';
                 removeWorkBtn.style.display = 'none';
-                document.getElementById('instructionSection').style.display = 'block';
+                uploadAreaModal.style.display = 'block';
             }
 
             modal.classList.add('active');
@@ -877,8 +874,71 @@
             modalFileInput.value = '';
         }
 
-        function handleImageUpload(file) {
-            showToast('⚠️ Vui lòng upload ảnh thủ công theo hướng dẫn');
+        async function handleImageUpload(file) {
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+            if (!validTypes.includes(file.type)) {
+                showToast('❌ Vui lòng chọn file ảnh hợp lệ!');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                showToast('❌ Kích thước ảnh quá lớn! Tối đa 10MB');
+                return;
+            }
+
+            if (isUploading) {
+                showToast('⏳ Đang upload ảnh, vui lòng đợi...');
+                return;
+            }
+
+            isUploading = true;
+            const uploadIcon = document.getElementById('uploadIcon');
+            const uploadText = document.getElementById('uploadText');
+
+            uploadIcon.textContent = '⏳';
+            uploadText.innerHTML = '<strong>Đang upload...</strong><br>Vui lòng đợi';
+
+            try {
+                // Upload to ImgBB
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const imageUrl = data.data.url;
+
+                    // Save to workDaysData
+                    workDaysData[selectedDate] = imageUrl;
+                    saveWorkDays();
+
+                    // Update UI
+                    currentImage.src = imageUrl;
+                    currentImageSection.style.display = 'block';
+                    removeWorkBtn.style.display = 'block';
+                    uploadAreaModal.style.display = 'none';
+                    modalTitle.textContent = 'Ngày đã làm việc';
+
+                    renderCalendar();
+                    updateStats();
+                    showToast('✅ Đã lưu ngày làm việc!');
+                } else {
+                    throw new Error('Upload failed');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showToast('❌ Lỗi khi upload ảnh! Vui lòng thử lại');
+                uploadIcon.textContent = '📷';
+                uploadText.innerHTML = '<strong>Click để chọn ảnh</strong><br>hoặc kéo thả ảnh vào đây';
+            } finally {
+                isUploading = false;
+            }
         }
 
         function formatDateKey(date) {
