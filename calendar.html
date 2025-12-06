@@ -399,10 +399,99 @@
             margin-bottom: 1.5rem;
         }
 
-        .current-image img {
-            width: 100%;
+        .images-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .image-item {
+            position: relative;
+            aspect-ratio: 1;
             border-radius: 8px;
+            overflow: hidden;
             border: 1px solid var(--color-border);
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .image-item img:hover {
+            transform: scale(1.05);
+        }
+
+        .image-item .delete-image {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255, 68, 68, 0.9);
+            border: none;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-item:hover .delete-image {
+            opacity: 1;
+        }
+
+        .delete-image:hover {
+            background: rgba(255, 68, 68, 1);
+        }
+
+        /* Image lightbox */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+
+        .lightbox img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 8px;
+        }
+
+        .lightbox .close-lightbox {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 3rem;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .lightbox .close-lightbox:hover {
+            transform: rotate(90deg);
         }
 
         .upload-area-modal {
@@ -628,9 +717,7 @@
             </div>
             <div class="modal-date" id="modalDate"></div>
 
-            <div class="current-image" id="currentImageSection" style="display: none;">
-                <img id="currentImage" src="" alt="Work photo">
-            </div>
+            <div class="images-gallery" id="imagesGallery"></div>
 
             <div class="upload-area-modal" id="uploadAreaModal">
                 <div class="upload-icon" id="uploadIcon">📷</div>
@@ -638,17 +725,23 @@
                     <strong>Click để chọn ảnh</strong><br>
                     hoặc kéo thả ảnh vào đây
                 </p>
-                <input type="file" id="modalFileInput" accept="image/*">
+                <input type="file" id="modalFileInput" accept="image/*" multiple>
             </div>
 
             <button class="btn-remove" id="removeWork" style="display: none;">
-                🗑️ Xóa đánh dấu ngày làm việc
+                🗑️ Xóa tất cả ảnh ngày này
             </button>
         </div>
     </div>
 
     <!-- Toast -->
     <div class="toast" id="toast"></div>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <button class="close-lightbox" id="closeLightbox">×</button>
+        <img id="lightboxImage" src="" alt="Full size image">
+    </div>
 
     <script>
         const STORAGE_KEY = 'calendar_work_days';
@@ -670,25 +763,48 @@
         const modalDate = document.getElementById('modalDate');
         const uploadAreaModal = document.getElementById('uploadAreaModal');
         const modalFileInput = document.getElementById('modalFileInput');
-        const currentImageSection = document.getElementById('currentImageSection');
-        const currentImage = document.getElementById('currentImage');
+        const imagesGallery = document.getElementById('imagesGallery');
         const removeWorkBtn = document.getElementById('removeWork');
         const toast = document.getElementById('toast');
         const statsThisMonth = document.getElementById('statsThisMonth');
         const statsTotal = document.getElementById('statsTotal');
         const statsPercent = document.getElementById('statsPercent');
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImage = document.getElementById('lightboxImage');
+        const closeLightbox = document.getElementById('closeLightbox');
 
         // Load work days from LocalStorage
         function loadWorkDays() {
             try {
                 const data = localStorage.getItem(STORAGE_KEY);
                 workDaysData = data ? JSON.parse(data) : {};
+
+                // Migrate old data format (single image) to new format (array)
+                migrateData();
             } catch (error) {
                 console.error('Error loading calendar data:', error);
                 workDaysData = {};
             }
             renderCalendar();
             updateStats();
+        }
+
+        // Migrate old data format to new format
+        function migrateData() {
+            let needsSave = false;
+
+            for (const dateStr in workDaysData) {
+                // If the value is a string (old format), convert to array
+                if (typeof workDaysData[dateStr] === 'string') {
+                    workDaysData[dateStr] = [workDaysData[dateStr]];
+                    needsSave = true;
+                }
+            }
+
+            if (needsSave) {
+                saveWorkDays();
+                console.log('Migrated old data format to new format');
+            }
         }
 
         // Save work days to LocalStorage
@@ -741,24 +857,34 @@
             uploadAreaModal.style.borderColor = 'var(--color-border)';
             const files = e.dataTransfer.files;
             if (files.length > 0) {
-                handleImageUpload(files[0]);
+                handleMultipleImageUpload(files);
             }
         });
 
         modalFileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                handleImageUpload(e.target.files[0]);
+                handleMultipleImageUpload(e.target.files);
+            }
+        });
+
+        closeLightbox.addEventListener('click', () => {
+            lightbox.classList.remove('active');
+        });
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.classList.remove('active');
             }
         });
 
         removeWorkBtn.addEventListener('click', () => {
-            if (confirm('Bạn có chắc muốn xóa đánh dấu ngày làm việc này?')) {
+            if (confirm('Bạn có chắc muốn xóa tất cả ảnh của ngày này?')) {
                 delete workDaysData[selectedDate];
                 saveWorkDays();
                 closeModal();
                 renderCalendar();
                 updateStats();
-                showToast('🗑️ Đã xóa ngày làm việc');
+                showToast('🗑️ Đã xóa tất cả ảnh ngày này');
             }
         });
 
@@ -795,9 +921,9 @@
                               month === today.getMonth() &&
                               year === today.getFullYear();
                 const hasWork = workDaysData[dateStr] !== undefined;
-                const imageData = hasWork ? workDaysData[dateStr] : null;
+                const imagesData = hasWork ? workDaysData[dateStr] : null;
 
-                const dayCell = createDayCell(day, false, imageData, isToday, dateStr);
+                const dayCell = createDayCell(day, false, imagesData, isToday, dateStr);
                 daysGrid.appendChild(dayCell);
             }
 
@@ -810,7 +936,7 @@
             }
         }
 
-        function createDayCell(day, isOtherMonth, imageData, isToday = false, dateStr = null) {
+        function createDayCell(day, isOtherMonth, imagesData, isToday = false, dateStr = null) {
             const cell = document.createElement('div');
             cell.className = 'day-cell';
 
@@ -820,7 +946,7 @@
             if (isToday) {
                 cell.classList.add('today');
             }
-            if (imageData) {
+            if (imagesData && imagesData.length > 0) {
                 cell.classList.add('has-work');
             }
 
@@ -829,11 +955,11 @@
             dayNumber.textContent = day;
             cell.appendChild(dayNumber);
 
-            if (imageData) {
+            if (imagesData && imagesData.length > 0) {
                 const thumbnail = document.createElement('div');
                 thumbnail.className = 'day-thumbnail';
                 const img = document.createElement('img');
-                img.src = imageData;
+                img.src = imagesData[0]; // Show first image as thumbnail
                 thumbnail.appendChild(img);
                 cell.appendChild(thumbnail);
             }
@@ -853,19 +979,70 @@
             modalTitle.textContent = hasWork ? 'Ngày đã làm việc' : 'Đánh dấu ngày làm việc';
             modalDate.textContent = formatDateDisplay(date);
 
-            if (hasWork) {
-                currentImage.src = workDaysData[dateStr];
-                currentImageSection.style.display = 'block';
+            // Render images gallery
+            renderImagesGallery();
+
+            if (hasWork && workDaysData[dateStr].length > 0) {
                 removeWorkBtn.style.display = 'block';
-                uploadAreaModal.style.display = 'none';
             } else {
-                currentImageSection.style.display = 'none';
                 removeWorkBtn.style.display = 'none';
-                uploadAreaModal.style.display = 'block';
             }
 
             modal.classList.add('active');
             document.body.style.overflow = 'hidden';
+        }
+
+        function renderImagesGallery() {
+            imagesGallery.innerHTML = '';
+
+            const images = workDaysData[selectedDate] || [];
+
+            images.forEach((imageUrl, index) => {
+                const imageItem = document.createElement('div');
+                imageItem.className = 'image-item';
+
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.alt = `Image ${index + 1}`;
+                img.addEventListener('click', () => {
+                    lightboxImage.src = imageUrl;
+                    lightbox.classList.add('active');
+                });
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-image';
+                deleteBtn.innerHTML = '×';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteImage(index);
+                });
+
+                imageItem.appendChild(img);
+                imageItem.appendChild(deleteBtn);
+                imagesGallery.appendChild(imageItem);
+            });
+        }
+
+        function deleteImage(index) {
+            if (confirm('Bạn có chắc muốn xóa ảnh này?')) {
+                const images = workDaysData[selectedDate];
+                images.splice(index, 1);
+
+                if (images.length === 0) {
+                    delete workDaysData[selectedDate];
+                }
+
+                saveWorkDays();
+                renderImagesGallery();
+                renderCalendar();
+                updateStats();
+
+                if (images.length === 0) {
+                    removeWorkBtn.style.display = 'none';
+                }
+
+                showToast('🗑️ Đã xóa ảnh');
+            }
         }
 
         function closeModal() {
@@ -887,18 +1064,6 @@
                 return;
             }
 
-            if (isUploading) {
-                showToast('⏳ Đang upload ảnh, vui lòng đợi...');
-                return;
-            }
-
-            isUploading = true;
-            const uploadIcon = document.getElementById('uploadIcon');
-            const uploadText = document.getElementById('uploadText');
-
-            uploadIcon.textContent = '⏳';
-            uploadText.innerHTML = '<strong>Đang upload...</strong><br>Vui lòng đợi';
-
             try {
                 // Upload to ImgBB
                 const formData = new FormData();
@@ -912,32 +1077,84 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    const imageUrl = data.data.url;
-
-                    // Save to workDaysData
-                    workDaysData[selectedDate] = imageUrl;
-                    saveWorkDays();
-
-                    // Update UI
-                    currentImage.src = imageUrl;
-                    currentImageSection.style.display = 'block';
-                    removeWorkBtn.style.display = 'block';
-                    uploadAreaModal.style.display = 'none';
-                    modalTitle.textContent = 'Ngày đã làm việc';
-
-                    renderCalendar();
-                    updateStats();
-                    showToast('✅ Đã lưu ngày làm việc!');
+                    return data.data.url;
                 } else {
                     throw new Error('Upload failed');
                 }
             } catch (error) {
                 console.error('Upload error:', error);
+                throw error;
+            }
+        }
+
+        async function handleMultipleImageUpload(files) {
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            const filesToUpload = Array.from(files).filter(file => {
+                if (!validTypes.includes(file.type)) {
+                    showToast('❌ Bỏ qua file không phải ảnh');
+                    return false;
+                }
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast('❌ Bỏ qua ảnh quá lớn (>10MB)');
+                    return false;
+                }
+                return true;
+            });
+
+            if (filesToUpload.length === 0) {
+                return;
+            }
+
+            if (isUploading) {
+                showToast('⏳ Đang upload ảnh, vui lòng đợi...');
+                return;
+            }
+
+            isUploading = true;
+            const uploadIcon = document.getElementById('uploadIcon');
+            const uploadText = document.getElementById('uploadText');
+
+            uploadIcon.textContent = '⏳';
+            uploadText.innerHTML = `<strong>Đang upload ${filesToUpload.length} ảnh...</strong><br>Vui lòng đợi`;
+
+            try {
+                let successCount = 0;
+                const uploadPromises = filesToUpload.map(file => handleImageUpload(file));
+                const imageUrls = await Promise.all(uploadPromises);
+
+                // Initialize array if not exists
+                if (!workDaysData[selectedDate]) {
+                    workDaysData[selectedDate] = [];
+                }
+
+                // Add new images to existing array
+                imageUrls.forEach(url => {
+                    if (url) {
+                        workDaysData[selectedDate].push(url);
+                        successCount++;
+                    }
+                });
+
+                saveWorkDays();
+
+                // Update UI
+                renderImagesGallery();
+                removeWorkBtn.style.display = 'block';
+                modalTitle.textContent = 'Ngày đã làm việc';
+
+                renderCalendar();
+                updateStats();
+                showToast(`✅ Đã upload ${successCount} ảnh!`);
+
+                // Reset input
+                modalFileInput.value = '';
+            } catch (error) {
+                console.error('Upload error:', error);
                 showToast('❌ Lỗi khi upload ảnh! Vui lòng thử lại');
-                uploadIcon.textContent = '📷';
-                uploadText.innerHTML = '<strong>Click để chọn ảnh</strong><br>hoặc kéo thả ảnh vào đây';
             } finally {
                 isUploading = false;
+                uploadIcon.textContent = '📷';
+                uploadText.innerHTML = '<strong>Click để chọn ảnh</strong><br>hoặc kéo thả ảnh vào đây';
             }
         }
 
